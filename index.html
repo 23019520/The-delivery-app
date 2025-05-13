@@ -197,6 +197,23 @@
         `;
       }
     })();
+    // Send data to server
+fetch('save_location.php', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    search_term: place,
+    destination_name: loc.display_name,
+    latitude: lat,
+    longitude: lon,
+    distance_meters: distM,
+    estimated_cost: parseFloat(cost)
+  })
+})
+.then(res => res.json())
+.then(data => console.log("Save response:", data))
+.catch(err => console.error("Save error:", err));
+
   </script>
 </body>
 </html>
