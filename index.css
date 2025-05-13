@@ -1,0 +1,54 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.topbar {
+  background: #111;
+  color: white;
+  padding: 1rem;
+}
+
+.content {
+  display: flex;
+  flex: 1;
+}
+
+.sidebar {
+  width: 300px;
+  border-right: 1px solid #ddd;
+  padding: 1rem;
+  box-sizing: border-box;
+}
+
+.map-container {
+  flex: 1;
+  position: relative;
+}
+
+button {
+  margin-top: 0.5rem;
+  width: 100%;
+  padding: 0.5rem;
+}
+
+.marker {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.pickup-marker {
+  background-color: #4CAF50;
+}
+
+.dropoff-marker {
+  background-color: #F44336;
+}

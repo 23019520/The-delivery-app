@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>UNI.p Academy – Location Helper</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #111;
+      color: white;
+    }
+
+    #map {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      z-index: 1;
+    }
+
+    .overlay {
+      position: relative;
+      z-index: 2;
+      padding: 30px;
+      max-width: 600px;
+      background: rgba(0, 0, 0, 0.4);
+      border-radius: 12px;
+      margin: 40px;
+    }
+
+    .overlay h1 {
+      font-size: 36px;
+      margin-bottom: 10px;
+      color: #2ecc71;
+    }
+
+    .overlay p { font-size: 15px; color: #ccc; margin-bottom: 20px; }
+    .overlay input, .overlay button {
+      padding: 10px; margin: 10px 10px 10px 0; font-size: 16px;
+      border-radius: 5px; border: none;
+    }
+    .overlay input { width: 230px; }
+    .overlay button {
+      background-color: #2ecc71; color: #fff; cursor: pointer;
+      transition: background-color .3s ease;
+    }
+    .overlay button:disabled { opacity: .6; cursor: not-allowed; }
+    .overlay button:hover:not(:disabled) { background-color: #27ae60; }
+
+    #output { margin-top: 15px; font-size: 16px; color: #eee; }
+
+    .top-nav { position: absolute; top: 20px; right: 40px; z-index: 3; display: flex; gap: 25px; }
+    .top-nav a { color: #aaa; text-decoration: none; font-weight: 500; transition: color .3s; }
+    .top-nav a:hover, .top-nav a.active { color: #2ecc71; }
+    .back-link { display: inline-block; margin-top: 25px; color: #2ecc71; text-decoration: none; }
+    .back-link:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="top-nav">
+    <a href="index.html" class="active">HOME</a>
+    <a href="#">STUDY</a>
+    <a href="#">RESOURCES</a>
+    <a href="#">PROFILE</a>
+  </div>
+
+  <div id="map"></div>
+
+  <div class="overlay">
+    <h1>Find a Nearby Place</h1>
+    <p>Type a place (e.g. "library", "cafe") to see distance &amp; cost.</p>
+
+    <input id="searchInput" placeholder="e.g. Pharmacy, Station" />
+    <button id="searchBtn" disabled>Search</button>
+    <div id="output"></div>
+    <a href="index.html" class="back-link">← Back to Home</a>
+  </div>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    (async function() {
+      const outputEl = document.getElementById('output');
+      const btn = document.getElementById('searchBtn');
+      let map, userMarker, destMarkerGroup;
+      let userLat, userLon;
+
+      // Initialize map after getting user location
+      try {
+        const pos = await new Promise((res, rej) =>
+          navigator.geolocation.getCurrentPosition(res, rej)
+        );
+        ({ latitude: userLat, longitude: userLon } = pos.coords);
+
+        map = L.map('map').setView([userLat, userLon], 14);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; OpenStreetMap contributors', maxZoom: 19
+        }).addTo(map);
+
+        userMarker = L.circleMarker([userLat, userLon], {
+          radius: 8, fillColor: '#2ecc71', color: '#2ecc71', weight: 1,
+          fillOpacity: .9
+        }).addTo(map).bindPopup('You are here').openPopup();
+
+        destMarkerGroup = L.layerGroup().addTo(map);
+        btn.disabled = false;
+      } catch(err) {
+        outputEl.innerText = 'Unable to access your location.';
+        console.error(err);
+      }
+
+      // Main search function
+      btn.addEventListener('click', async () => {
+        const place = document.getElementById('searchInput').value.trim();
+        if (!place) {
+          outputEl.innerText = 'Please enter a place to search.';
+          return;
+        }
+        btn.disabled = true;
+        outputEl.innerText = 'Searching...';
+
+        try {
+          const results = await fetchNearby(place, userLat, userLon);
+          if (!results.length) {
+            outputEl.innerText = 'No places found.';
+          } else {
+            const nearest = results.reduce((best, loc) =>
+              distance(userLat, userLon, loc.lat, loc.lon) < distance(userLat, userLon, best.lat, best.lon)
+                ? loc : best
+            );
+
+            showResult(nearest);
+          }
+        } catch(e) {
+          outputEl.innerText = 'Search failed.';
+          console.error(e);
+        } finally {
+          btn.disabled = false;
+        }
+      });
+
+      // Fetch nearby with bounding box first, then global
+      async function fetchNearby(q, lat, lon) {
+        const box = 0.45;
+        const viewbox = [lon - box, lat + box, lon + box, lat - box].join(',');
+        let data = await queryNominatim(q, { viewbox, bounded: 1 });
+        if (!data.length) data = await queryNominatim(q);
+        return data;
+      }
+
+      // Nominatim query helper
+      async function queryNominatim(q, params = {}) {
+        const base = 'https://nominatim.openstreetmap.org/search';
+        const url = new URL(base);
+        url.searchParams.set('q', q);
+        url.searchParams.set('format', 'json');
+        url.searchParams.set('limit', 10);
+        Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v));
+
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error('Network response not ok');
+        return resp.json();
+      }
+
+      // Haversine distance
+      function distance(lat1, lon1, lat2, lon2) {
+        const toRad = d => d * Math.PI/180;
+        const R = 6371000;
+        const dLat = toRad(lat2 - lat1);
+        const dLon = toRad(lon2 - lon1);
+        const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      }
+
+      // Display result
+      function showResult(loc) {
+        destMarkerGroup.clearLayers();
+        const lat = parseFloat(loc.lat), lon = parseFloat(loc.lon);
+        L.marker([lat, lon]).addTo(destMarkerGroup)
+          .bindPopup(loc.display_name).openPopup();
+        map.setView([lat, lon], 14);
+
+        const distM = Math.round(distance(userLat, userLon, lat, lon));
+        const cost = (distM * 0.5).toFixed(2);
+        const note = (distM/1000 > 50)
+          ? '<br><span style="color:#ff6b6b;">Note: over 50km away.</span>'
+          : '';
+
+        outputEl.innerHTML = `
+          <strong>📍 Destination:</strong> ${loc.display_name}<br>
+          <strong>Distance:</strong> ${distM} meters<br>
+          <strong>Estimated Cost:</strong> R${cost}${note}
+        `;
+      }
+    })();
+  </script>
+</body>
+</html>

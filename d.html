@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Geolocation Example</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      text-align: center;
+    }
+    #output {
+      margin-top: 20px;
+      font-size: 1.2em;
+      color: #333;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Get Your Location</h1>
+  <button onclick="getLocation()">Find My Location</button>
+  <div id="output"></div>
+
+  <script>
+    function getLocation() {
+      const output = document.getElementById("output");
+
+      // Check if geolocation is supported
+      if (!navigator.geolocation) {
+        output.innerText = "Geolocation is not supported by your browser.";
+        return;
+      }
+
+      // Request location
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const latitude = position.coords.latitude;
+          const longitude = position.coords.longitude;
+          output.innerText = `Your Location:\nLatitude: ${latitude}\nLongitude: ${longitude}`;
+        },
+        (error) => {
+          switch(error.code) {
+            case error.PERMISSION_DENIED:
+              output.innerText = "User denied the request for Geolocation.";
+              break;
+            case error.POSITION_UNAVAILABLE:
+              output.innerText = "Location information is unavailable.";
+              break;
+            case error.TIMEOUT:
+              output.innerText = "The request to get user location timed out.";
+              break;
+            case error.UNKNOWN_ERROR:
+              output.innerText = "An unknown error occurred.";
+              break;
+          }
+        }
+      );
+    }
+
+  function getLocation() {
+    const output = document.getElementById("output");
+
+    if (!navigator.geolocation) {
+      output.innerText = "Geolocation is not supported by your browser.";
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
+
+        // Show lat/lon
+        output.innerText = `Coordinates:\nLatitude: ${lat}\nLongitude: ${lon}\nFetching address...`;
+
+        // Fetch the real location (reverse geocode)
+        fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`)
+          .then(response => response.json())
+          .then(data => {
+            const address = data.display_name;
+            output.innerText += `\n\n Your Location:\n${address}`;
+          })
+          .catch(error => {
+            output.innerText += "\n\nFailed to fetch address.";
+            console.error(error);
+          });
+      },
+      (error) => {
+        output.innerText = "Error getting location.";
+      }
+    );
+  }
+
+  </script>
+
+</body>
+</html>

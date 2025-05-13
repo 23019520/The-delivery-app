@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Nearest Place Map</title>
+  <meta charset="utf-8" />
+  <style>
+    body { font-family: Arial, text-align: center; padding: 20px; }
+    #map { height: 400px; width: 90%; margin: 20px auto; border: 1px solid #ccc; }
+    input, button { padding: 10px; font-size: 16px; }
+    #output { margin-top: 10px; font-size: 1.1em; }
+  </style>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+</head>
+<body>
+
+  <h2>Find Nearest Place & Show on Map</h2>
+  <input type="text" id="placeInput" placeholder="e.g. Pharmacy, Shoprite" />
+  <button onclick="findNearestPlace()">Search Nearby</button>
+
+  <div id="output"></div>
+  <div id="map"></div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+
+  <script>
+    let map, marker;
+
+    function findNearestPlace() {
+      const query = document.getElementById("placeInput").value;
+      const output = document.getElementById("output");
+
+      if (!query) {
+        output.innerText = "Please enter a place.";
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(position => {
+        const userLat = position.coords.latitude;
+        const userLon = position.coords.longitude;
+
+        output.innerText = `Searching for "${query}" near you...`;
+
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&viewbox=${userLon - 0.2},${userLat + 0.2},${userLon + 0.2},${userLat - 0.2}&bounded=1`;
+
+        fetch(url)
+          .then(res => res.json())
+          .then(data => {
+            if (data.length === 0) {
+              output.innerText = "No nearby places found.";
+              return;
+            }
+
+            const closest = data.reduce((nearest, place) => {
+              const d1 = distance(userLat, userLon, place.lat, place.lon);
+              const d2 = distance(userLat, userLon, nearest.lat, nearest.lon);
+              return d1 < d2 ? place : nearest;
+            });
+
+            const lat = parseFloat(closest.lat);
+            const lon = parseFloat(closest.lon);
+
+            output.innerHTML = `
+              <strong>📍 Closest Match:</strong> ${closest.display_name}<br>
+              <strong>Latitude:</strong> ${lat}<br>
+              <strong>Longitude:</strong> ${lon}
+            `;
+
+            showMap(lat, lon, closest.display_name);
+          })
+          .catch(err => {
+            output.innerText = "Error finding place.";
+            console.error(err);
+          });
+
+      }, () => {
+        output.innerText = "Could not get your location.";
+      });
+    }
+
+    function showMap(lat, lon, placeName) {
+      if (!map) {
+        map = L.map('map').setView([lat, lon], 14);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+      } else {
+        map.setView([lat, lon], 14);
+        if (marker) map.removeLayer(marker);
+      }
+
+      marker = L.marker([lat, lon]).addTo(map)
+        .bindPopup(`<strong>${placeName}</strong>`)
+        .openPopup();
+    }
+
+    function distance(lat1, lon1, lat2, lon2) {
+      const toRad = deg => deg * Math.PI / 180;
+      const R = 6371;
+      const dLat = toRad(lat2 - lat1);
+      const dLon = toRad(lon2 - lon1);
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return R * c;
+    }
+  </script>
+
+</body>
+</html>
